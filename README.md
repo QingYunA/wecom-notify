@@ -1,12 +1,13 @@
-# wecom-notify
+# pi-wecom-notify
 
 Pi Agent 企业微信通知扩展。将 agent 生命周期事件推送至企业微信群机器人，手机/桌面企业微信即时可达——绕开 zellij OSC 透传、Ghostty 通知注册等终端链路限制。
 
 ## 安装
 
 ```bash
-pi install npm:wecom-notify   # 发布后
-# 或本地开发：复制整个目录到 ~/.pi/agent/extensions/wecom-notify/
+pi install npm:pi-wecom-notify
+# 或从 GitHub：pi install git:github.com/QingYunA/wecom-notify
+# 本地开发：复制整个目录到 ~/.pi/agent/extensions/pi-wecom-notify/（目录名即扩展加载路径）
 ```
 
 ## 配置
@@ -65,9 +66,13 @@ pi install npm:wecom-notify   # 发布后
 
 ```bash
 # 语法检查
-npx esbuild index.ts --bundle --format=esm --platform=node --external:@earendil-works/pi-coding-agent
+npx esbuild index.ts --bundle --format=esm --platform=node --external:@earendil-works/pi-coding-agent --external:@earendil-works/pi-tui
 # 本地试用
 pi -e ./index.ts
 ```
 
-发布：`npm publish`（pi 通过 `pi install npm:wecom-notify` 安装）。
+发布（需要 npm 账号 + 带 bypass 2FA 权限的 token）：
+
+```bash
+npm publish --registry=https://registry.npmjs.org
+```
