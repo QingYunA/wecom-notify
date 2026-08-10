@@ -12,7 +12,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tui";
-import { DEFAULT_EVENTS, EVENTS, configPath, loadConfig, maskWebhook, saveConfig } from "./config.ts";
+import { DEFAULT_EVENTS, EVENTS, configPath, loadConfig, maskWebhook, resolveMachineName, saveConfig } from "./config.ts";
 import { buildTestMessage } from "./message.ts";
 import { sendWecom } from "./sender.ts";
 
@@ -24,12 +24,14 @@ export function registerCommands(pi: ExtensionAPI, onConfigChanged: () => void):
       const items = [
         "--- 当前配置 ---",
         `Webhook: ${maskWebhook(cfg.webhook)}`,
+        `机器名: ${resolveMachineName(cfg)}`,
         `回复摘要: ${cfg.includeSummary ? "开" : "关"}（最多 ${cfg.maxSummaryLength} 字）`,
         `触发事件 (${cfg.events.length}): ${cfg.events.join(", ")}`,
         `配置文件: ${configPath()}`,
         "",
         "--- 管理命令 ---",
         "/wecom:set-webhook <url|off>",
+        "/wecom:set-machine <名称|空>",
         "/wecom:set-events <a,b,c|default>",
         "/wecom:test",
       ];
@@ -160,6 +162,32 @@ export function registerCommands(pi: ExtensionAPI, onConfigChanged: () => void):
     },
   });
 
+  pi.registerCommand("wecom:set-machine", {
+    description: "设置自定义机器名（多机器同 webhook 时区分；空 = 恢复 hostname）",
+    handler: async (args: string, ctx: ExtensionContext) => {
+      const cfg = loadConfig();
+      let name = args.trim();
+      if (!name) {
+        if (ctx.mode !== "tui") {
+          ctx.ui.notify("无参数时需要 TUI，请直接传名称或留空恢复默认", "warning");
+          return;
+        }
+        const input = await ctx.ui.input(
+          `机器名（当前: ${resolveMachineName(cfg)}，留空 = 恢复 hostname）`,
+          cfg.machineName ?? ""
+        );
+        if (input === undefined) {
+          ctx.ui.notify("已取消。", "info");
+          return;
+        }
+        name = input.trim();
+      }
+      cfg.machineName = name || undefined;
+      saveConfig(cfg);
+      ctx.ui.notify(`机器名已设为: ${resolveMachineName(cfg)}`, "info");
+    },
+  });
+
   pi.registerCommand("wecom:test", {
     description: "发送一条测试消息到企业微信",
     handler: async (_args: string, ctx: ExtensionContext) => {
@@ -168,7 +196,7 @@ export function registerCommands(pi: ExtensionAPI, onConfigChanged: () => void):
         ctx.ui.notify("Webhook 未配置，先运行 /wecom:set-webhook", "warning");
         return;
       }
-      const r = await sendWecom(cfg.webhook, buildTestMessage());
+      const r = await sendWecom(cfg.webhook, buildTestMessage(cfg));
       ctx.ui.notify(r.ok ? "测试消息已发送 ✅" : `发送失败: ${r.detail}`, r.ok ? "info" : "error");
     },
   });

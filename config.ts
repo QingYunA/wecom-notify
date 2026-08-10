@@ -18,6 +18,8 @@ export interface WecomConfig {
   maxSummaryLength: number;
   /** 触发事件列表（pi 生命周期事件名） */
   events: string[];
+  /** 自定义机器名（多机器同 webhook 时区分；缺省用 os.hostname()） */
+  machineName?: string;
 }
 
 export interface EventDef {
@@ -61,6 +63,11 @@ export function configPath(): string {
 
 export function defaultConfig(): WecomConfig {
   return { webhook: "", includeSummary: true, maxSummaryLength: 400, events: [...DEFAULT_EVENTS] };
+}
+
+/** 生效的机器名：配置优先，缺省 hostname */
+export function resolveMachineName(cfg: WecomConfig): string {
+  return cfg.machineName?.trim() || os.hostname();
 }
 
 export function loadConfig(): WecomConfig {

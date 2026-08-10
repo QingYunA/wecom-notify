@@ -8,7 +8,7 @@
 import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import type { WecomConfig } from "./config.ts";
+import { resolveMachineName, type WecomConfig } from "./config.ts";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object";
@@ -73,8 +73,8 @@ export function buildAskMessage(payload: unknown): string {
   return options.length ? `${base}${suffix} — ${options.join(", ")}` : `${base}${suffix}`;
 }
 
-/** 公共环境字段行。 */
-export function commonLines(): string[] {
+/** 公共环境字段行（机器名用 resolveMachineName 解析）。 */
+export function commonLines(config: WecomConfig): string[] {
   const gitRoot = sh(["rev-parse", "--show-toplevel"]);
   const project = gitRoot ? path.basename(gitRoot) : path.basename(process.cwd());
   const branch = sh(["branch", "--show-current"]) ?? "N/A";
@@ -84,48 +84,54 @@ export function commonLines(): string[] {
     `> **项目**：${project}`,
     `> **分支**：${branch}`,
     `> **Session**：${session}`,
-    `> **主机**：${os.hostname()}`,
+    `> **机器**：${resolveMachineName(config)}`,
     `> **时间**：${time}`,
   ];
 }
 
+/** 标题行：所有事件统一带 [机器名] 前缀，多机器一眼区分 */
+function titleLine(machine: string, emoji: string, text: string): string {
+  return `### ${emoji} [${machine}] ${text}`;
+}
+
 /** 按事件构建企业微信 markdown 内容。 */
 export function buildContent(config: WecomConfig, eventKey: string, payload: unknown): string {
+  const machine = resolveMachineName(config);
   const lines: string[] = [];
-  const common = (): void => { lines.push("", ...commonLines(), "", "状态：等待下一步指令"); };
+  const common = (): void => { lines.push("", ...commonLines(config), "", "状态：等待下一步指令"); };
 
   switch (eventKey) {
     case "workflow_end": {
       const p = isRecord(payload) ? payload : {};
       const failed = p.success === false;
-      lines.push(`### ${failed ? "❌" : "✅"} Workflow ${failed ? "执行失败" : "完成"}`);
+      lines.push(titleLine(machine, failed ? "❌" : "✅", `Workflow ${failed ? "执行失败" : "完成"}`));
       lines.push("", `> **命令**：${str(p.command, "unknown")}`, `> **结果**：${failed ? "失败" : "成功"}`);
       common();
       break;
     }
     case "ralph_loop_end": {
       const p = isRecord(payload) ? payload : {};
-      lines.push("### 🔄 Ralph Loop 结束");
+      lines.push(titleLine(machine, "🔄", "Ralph Loop 结束"));
       lines.push("", `> **名称**：${str(p.name, "unknown")}`, `> **状态**：${str(p.status, "completed")}`);
       common();
       break;
     }
     case "mcp_server_error": {
       const p = isRecord(payload) ? payload : {};
-      lines.push("### ❌ MCP 服务器错误");
+      lines.push(titleLine(machine, "❌", "MCP 服务器错误"));
       lines.push("", `> **服务器**：${str(p.name, "unknown")}`, `> **错误**：${clip(str(p.error, "unknown error"), 200)}`);
       common();
       break;
     }
     case "ask_user_prompt": {
-      lines.push("### ❓ Pi Agent 需要你的输入");
+      lines.push(titleLine(machine, "❓", "Pi Agent 需要你的输入"));
       lines.push("", `> **问题**：${clip(buildAskMessage(payload), 200)}`);
       common();
       break;
     }
     case "agent_settled": {
-      lines.push("### ✅ Pi Agent 全部完成");
-      lines.push("", ...commonLines());
+      lines.push(titleLine(machine, "✅", "Pi Agent 全部完成"));
+      lines.push("", ...commonLines(config));
       if (config.includeSummary) {
         const text = extractLastAssistantText(payload);
         if (text) lines.push("", "**完成摘要**：", clip(text, config.maxSummaryLength));
@@ -135,19 +141,19 @@ export function buildContent(config: WecomConfig, eventKey: string, payload: unk
     }
     case "memory_consolidated": {
       const p = isRecord(payload) ? payload : {};
-      lines.push("### 🧠 记忆整合完成");
+      lines.push(titleLine(machine, "🧠", "记忆整合完成"));
       lines.push("", `> **条数**：${str(p.count, "?")}`);
       common();
       break;
     }
     case "session_shutdown": {
-      lines.push("### 👋 Pi 会话结束");
-      lines.push("", ...commonLines());
+      lines.push(titleLine(machine, "👋", "Pi 会话结束"));
+      lines.push("", ...commonLines(config));
       break;
     }
     case "permission_request": {
       const p = isRecord(payload) ? payload : {};
-      lines.push("### 🔐 权限请求");
+      lines.push(titleLine(machine, "🔐", "权限请求"));
       const detail = [str(p.agentName, ""), str(p.surface, ""), str(p.value, "")].filter(Boolean).join(" · ");
       if (detail) lines.push("", `> **请求**：${clip(detail, 200)}`);
       const msg = str(p.message, "");
@@ -157,8 +163,8 @@ export function buildContent(config: WecomConfig, eventKey: string, payload: unk
     }
     default: {
       // agent_end
-      lines.push("### ✅ Pi Agent 已完成");
-      lines.push("", ...commonLines());
+      lines.push(titleLine(machine, "✅", "Pi Agent 已完成"));
+      lines.push("", ...commonLines(config));
       if (config.includeSummary) {
         const text = extractLastAssistantText(payload);
         if (text) lines.push("", "**完成摘要**：", clip(text, config.maxSummaryLength));
@@ -171,13 +177,13 @@ export function buildContent(config: WecomConfig, eventKey: string, payload: unk
 }
 
 /** /wecom:test 用的固定测试消息。 */
-export function buildTestMessage(): string {
+export function buildTestMessage(config: WecomConfig): string {
   return [
-    "### ✅ 企业微信通知测试",
+    `### ✅ [${resolveMachineName(config)}] 企业微信通知测试`,
     "",
-    "> **主机**：".concat(os.hostname()),
+    `> **机器**：${resolveMachineName(config)}`,
     `> **时间**：${new Date().toLocaleString("zh-CN", { hour12: false })}`,
     "",
-    "如果你看到这条消息，说明 wecom-notify 配置正确。",
+    "如果你看到这条消息，说明 pi-wecom-notify 配置正确。",
   ].join("\n");
 }
