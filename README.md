@@ -1,78 +1,105 @@
 # pi-wecom-notify
 
-Pi Agent 企业微信通知扩展。将 agent 生命周期事件推送至企业微信群机器人，手机/桌面企业微信即时可达——绕开 zellij OSC 透传、Ghostty 通知注册等终端链路限制。
+Pi Agent 企业微信通知扩展 — agent 完成任务、执行失败、或向你提问时，自动推送企业微信群机器人，**手机 / 桌面企业微信即时可达**。绕开终端通知的所有限制（zellij OSC 透传、Ghostty 通知注册、SSH 窗口切换），多 Agent 并行时靠 Session 字段一眼区分。
+
+## Features
+
+- ✅ **任务完成即通知** — 回复结束 1~2 秒内推送，含项目 / Git 分支 / Session / 主机 / 时间
+- ✅ **回复摘要** — 自动提取 agent 最后一条回复（可配置长度）
+- ✅ **提问提醒** — agent 向你提问等待输入时单独推送（配合 `@juicesharp/rpiv-ask-user-question`）
+- ✅ **错误通知** — 工作流失败、MCP 服务器错误单独推送
+- ✅ **多 Agent 区分** — Zellij Session 字段让你知道该切到哪个窗口
+- ✅ **5 秒去重** — 防连发
+- ✅ **全量管理命令** — `/wecom:*` 弹框式配置，改完立即生效，无需重启
+- ✅ **零依赖** — 只用 Node 内置 API 与 pi 核心，无第三方运行时依赖
 
 ## 安装
 
 ```bash
 pi install npm:pi-wecom-notify
-# 或从 GitHub：pi install git:github.com/QingYunA/wecom-notify
-# 本地开发：复制整个目录到 ~/.pi/agent/extensions/pi-wecom-notify/（目录名即扩展加载路径）
 ```
 
-## 配置
+## 快速开始
 
-配置文件 `~/.config/pi/wecom-notify.json`（可用环境变量 `WECOM_CONFIG_PATH` 覆盖路径）：
+**1. 建群机器人**：企业微信群 → 群设置 → 群机器人 → 添加机器人 → 自定义机器人，复制 Webhook URL（形如 `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx`）。
+
+**2. 配置**：编辑 `~/.config/pi/wecom-notify.json`（或用命令 `/wecom:set-webhook`，粘贴即生效，无需 reload）：
 
 ```json
 {
-  "webhook": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx",
+  "webhook": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的key",
   "includeSummary": true,
   "maxSummaryLength": 400,
-  "events": ["workflow_end", "ralph_loop_end", "mcp_server_error", "agent_end", "ask_user_prompt"]
+  "events": ["agent_end", "workflow_end", "ralph_loop_end", "mcp_server_error", "ask_user_prompt"]
 }
 ```
 
-- `webhook` 留空 = 禁用发送（扩展正常加载，仅写日志）
-- 企业微信群机器人：群设置 → 群机器人 → 添加 → 自定义机器人
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `webhook` | `""`（禁用） | 企业微信群机器人 Webhook |
+| `includeSummary` | `true` | 是否附带回复摘要 |
+| `maxSummaryLength` | `400` | 摘要最大字数，超出截断 |
+| `events` | 见默认值 | 触发事件列表（用 `/wecom:set-events` 弹框勾选） |
+
+**3. 验证**：`/wecom:test` 发送测试消息，或直接开始对话——回复结束后企业微信自动收到通知。
+
+> 环境变量 `WECOM_CONFIG_PATH` 可覆盖配置文件路径（多配置 / 测试用）。
 
 ## 管理命令
 
 | 命令 | 作用 |
 |---|---|
 | `/wecom:status` | 查看当前配置（webhook 打码显示） |
-| `/wecom:set-webhook` | 无参数 = 弹框输入 URL；或带参 `https://…`；`off`/留空 = 禁用 |
-| `/wecom:set-events` | 无参数 = SettingsList 弹框勾选（9 个事件）；或带参 `a,b,c`/`default` 直接设置 |
-| `/wecom:test` | 发一条测试消息 |
+| `/wecom:set-webhook` | 弹框输入 Webhook（`off` 或留空 = 禁用发送） |
+| `/wecom:set-events` | SettingsList 弹框勾选触发事件（支持 `/` 搜索） |
+| `/wecom:test` | 发送测试消息 |
 
 ## 触发事件
 
-| 事件 | 触发时机 | 消息 |
+| 事件 | 触发时机 | 推送内容 |
 |---|---|---|
-| `agent_end` | 每次回复结束 | ✅ Pi Agent 已完成 + 回复摘要 |
+| `agent_end` | 每次回复结束 | ✅ Pi Agent 已完成 + 摘要 |
+| `agent_settled` | Agent 全部收尾完成 | ✅ Pi Agent 全部完成 + 摘要 |
 | `workflow_end` | 工作流结束 | ✅/❌ Workflow 完成/失败 |
 | `ralph_loop_end` | Ralph loop 结束 | 🔄 Ralph Loop 结束 |
 | `mcp_server_error` | MCP 服务器报错 | ❌ MCP 服务器错误 |
 | `ask_user_prompt` | Agent 提问等你回答 | ❓ 需要你的输入 + 问题/选项 |
-| `agent_settled` | Agent 全部收尾完成 | ✅ Pi Agent 全部完成 + 摘要 |
 | `memory_consolidated` | 记忆整合完成 | 🧠 记忆整合完成 |
 | `session_shutdown` | 会话结束 | 👋 Pi 会话结束 |
 | `permission_request` | 权限请求 | 🔐 权限请求 |
 
-> 事件列表与 @pi-unipi/notify 支持的 9 个事件一致。`agent_end`/`agent_settled`/`session_shutdown` 是 pi 原生事件；其余 `unipi:*`/`permissions:*` 事件由 unipi 生态插件（如 @pi-unipi/notify）投递，未安装时自然收不到，不影响其他事件。
+> 事件投递说明：`agent_end` / `agent_settled` / `session_shutdown` 是 pi 原生事件，开箱即用；`ask_user_prompt` 由 [@juicesharp/rpiv-ask-user-question](https://www.npmjs.com/package/@juicesharp/rpiv-ask-user-question) 投递；其余 `unipi:*` 事件由 unipi 生态插件投递，未安装时自然收不到，不影响其他事件。
 
-所有消息携带公共字段：项目（git root）/ 分支 / Zellij Session / 主机 / 时间。5 秒去重防连发。
+## 通知示例
+
+```
+### ✅ Pi Agent 已完成
+
+> **项目**：excel2plot
+> **分支**：main
+> **Session**：backend
+> **主机**：macbook-pro
+> **时间**：2026/8/10 14:32
+
+**完成摘要**：
+修改 reply 返回类型为 Array<string>，补充了单测
+
+状态：等待下一步指令
+```
 
 ## 安全
 
-- webhook 不写死在代码、不提交 git、不打印完整 URL（日志只记 configured 状态与 errcode）
-- 通知失败仅写日志，绝不影响 pi 运行
+- Webhook 仅存于配置文件，不写死在代码、不进仓库、日志不打印完整 URL
+- 通知失败只写日志，绝不影响 pi 正常运行（日志：`~/.pi/logs/wecom-notify.log`）
 
-## 日志
+## FAQ
 
-`~/.pi/logs/wecom-notify.log`
+**Q: 每个回复结束都通知，太频繁？** 用 `/wecom:set-events` 只保留 `ask_user_prompt`（提问时才推送），或后续等长任务阈值功能。
 
-## 开发
+**Q: 和 @pi-unipi/notify 的关系？** 独立。本扩展只发企业微信，不依赖任何 unipi 组件；两者可同时使用（桌面通知 + 微信通知）。
 
-```bash
-# 语法检查
-npx esbuild index.ts --bundle --format=esm --platform=node --external:@earendil-works/pi-coding-agent --external:@earendil-works/pi-tui
-# 本地试用
-pi -e ./index.ts
-```
+**Q: 多台机器都要收通知？** 每台机器各自 `pi install` + 配置同一个 webhook 即可，群里都能收到。
 
-发布（需要 npm 账号 + 带 bypass 2FA 权限的 token）：
+## License
 
-```bash
-npm publish --registry=https://registry.npmjs.org
-```
+MIT

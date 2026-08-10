@@ -1,12 +1,12 @@
 {
   "name": "pi-wecom-notify",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Pi Agent 企业微信通知扩展 — 将 agent 生命周期事件（完成/失败/提问）推送至企业微信群机器人，绕开终端 OSC 透传限制。Pi Agent WeCom (WeChat Work) notification extension: push agent lifecycle events to a WeCom group bot via webhook.",
   "type": "module",
   "main": "index.ts",
   "files": [
     "*.ts",
-    "README.md"
+    "*.md"
   ],
   "keywords": [
     "pi-package",
