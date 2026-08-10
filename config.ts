@@ -34,7 +34,7 @@ export const EVENTS: EventDef[] = [
   { id: "workflow_end", label: "工作流结束", hook: "unipi:workflow:end" },
   { id: "ralph_loop_end", label: "Ralph 循环结束", hook: "unipi:ralph:loop:end" },
   { id: "mcp_server_error", label: "MCP 服务器错误", hook: "unipi:mcp:server:error" },
-  { id: "ask_user_prompt", label: "Agent 提问等你回答", hook: "unipi:ask-user:prompt" },
+  { id: "ask_user_prompt", label: "Agent 提问等你回答", hook: "rpiv:ask-user:prompt" },
   { id: "agent_settled", label: "Agent 全部完成", hook: "agent_settled" },
   { id: "memory_consolidated", label: "记忆整合完成", hook: "unipi:memory:consolidated" },
   { id: "session_shutdown", label: "会话结束", hook: "session_shutdown" },
