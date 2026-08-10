@@ -37,6 +37,7 @@ pi install npm:pi-wecom-notify
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `webhook` | `""`（禁用） | 企业微信群机器人 Webhook |
+| `machineName` | hostname | 自定义机器名，多机器同 webhook 时区分（消息标题带 `[机器名]` 前缀） |
 | `includeSummary` | `true` | 是否附带回复摘要 |
 | `maxSummaryLength` | `400` | 摘要最大字数，超出截断 |
 | `events` | 见默认值 | 触发事件列表（用 `/wecom:set-events` 弹框勾选） |
@@ -51,6 +52,7 @@ pi install npm:pi-wecom-notify
 |---|---|
 | `/wecom:status` | 查看当前配置（webhook 打码显示） |
 | `/wecom:set-webhook` | 弹框输入 Webhook（`off` 或留空 = 禁用发送） |
+| `/wecom:set-machine` | 弹框设置机器名（多机器区分；留空 = 恢复 hostname） |
 | `/wecom:set-events` | SettingsList 弹框勾选触发事件（支持 `/` 搜索） |
 | `/wecom:test` | 发送测试消息 |
 
@@ -73,12 +75,12 @@ pi install npm:pi-wecom-notify
 ## 通知示例
 
 ```
-### ✅ Pi Agent 已完成
+### ✅ [工作机] Pi Agent 已完成
 
 > **项目**：excel2plot
 > **分支**：main
 > **Session**：backend
-> **主机**：macbook-pro
+> **机器**：工作机
 > **时间**：2026/8/10 14:32
 
 **完成摘要**：
@@ -86,6 +88,19 @@ pi install npm:pi-wecom-notify
 
 状态：等待下一步指令
 ```
+
+## 多机器同 webhook
+
+多台机器共用同一个 webhook 时，每台机器设置不同的 `machineName`，消息**标题直接带 `[机器名]` 前缀**，手机上一眼区分是哪台机器发的：
+
+```bash
+# 每台机器分别执行（弹框输入，立即生效）
+/wecom:set-machine 工作机
+/wecom:set-machine 家里服务器
+/wecom:set-machine VPS-日本
+```
+
+不设置则用系统 hostname。
 
 ## 安全
 
